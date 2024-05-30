@@ -1,6 +1,6 @@
 import io
+import torch
 from pydantic import BaseModel
-from torch import nn, load, save
 
 input_features = 48
 output_features = 4
@@ -17,19 +17,20 @@ class NeuralNetSpec(BaseModel):
     layers: list[NeuralNetLayerSpec]
     modifiers: list[NeuralNetModifierSpec]
 
-class NeuralNet(nn.Module):
+class NeuralNet(torch.nn.Module):
     def __init__(self, nn_spec: NeuralNetSpec):
         super(NeuralNet, self).__init__()
         
         self.spec = nn_spec
-        self.layer_stack = nn.Sequential()
+        self.layer_stack = torch.nn.Sequential()
         layer_input_features = input_features
         for layer in nn_spec.layers:
-            self.layer_stack.append(nn.Linear(layer_input_features, layer.outputs))
+            self.layer_stack.append(torch.nn.Linear(layer_input_features, layer.outputs))
             layer_input_features = layer.outputs
             self.layer_stack.append(parse_activation(layer))
-        self.layer_stack.append(nn.Linear(layer_input_features, output_features))
-
+        self.layer_stack.append(torch.nn.Linear(layer_input_features, output_features))
+        
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=0.001, amsgrad=True)
         # output_loss_delta = next(
         #     (m.parameters.delta for m in nn_spec.modifiers if m.parameters.has_key("delta")),
         #     1.0)
@@ -37,12 +38,12 @@ class NeuralNet(nn.Module):
 
     @classmethod
     def from_saved(cls, data: bytes):
-        return load(data)
+        return torch.load(data)
     
     def export(self):
         #onnx_program = torch.onnx.dynamo_export(m, torch.rand((1, input_features), dtype=torch.float32))
         with io.BytesIO() as buf:
-            save(self, buf)
+            torch.save(self, buf)
             buf.seek(0)
             return buf.read()
 
@@ -51,38 +52,38 @@ class NeuralNet(nn.Module):
 
 def parse_activation(layer_spec: NeuralNetLayerSpec):
     if "activation" not in layer_spec.parameters:
-        return nn.Identity()
+        return torch.nn.Identity()
     match layer_spec.parameters.get("activation"):
         case "relu":
-            return nn.ReLU()
+            return torch.nn.ReLU()
         case "sigmoid":
-            return nn.Sigmoid()
+            return torch.nn.Sigmoid()
         case "softmax":
-            return nn.Softmax()
+            return torch.nn.Softmax()
         case "identity":
-            return nn.Identity()
+            return torch.nn.Identity()
         case "relu6":
-            return nn.ReLU6()
+            return torch.nn.ReLU6()
         case "celu":
-            return nn.CELU()
+            return torch.nn.CELU()
         case "elu":
-            return nn.ELU() # alpha param?
+            return torch.nn.ELU() # alpha param?
         case "tanh":
-            return nn.Tanh()
+            return torch.nn.Tanh()
         case "mish":
-            return nn.Mish()
+            return torch.nn.Mish()
         case "softplus":
-            return nn.Softplus() # beta, threshold?
+            return torch.nn.Softplus() # beta, threshold?
         case "hardswish":
-            return nn.Hardswish()
+            return torch.nn.Hardswish()
         case "gelu":
-            return nn.GELU()
+            return torch.nn.GELU()
         case "rrelu":
-            return nn.RReLU()
+            return torch.nn.RReLU()
         case "hardtanh":
-            return nn.Hardtanh()
+            return torch.nn.Hardtanh()
         case "tanhshrink":
-            return nn.Tanhshrink()
+            return torch.nn.Tanhshrink()
         case "hardsigmoid":
-            return nn.Hardsigmoid()
-    return nn.Identity()
+            return torch.nn.Hardsigmoid()
+    return torch.nn.Identity()
