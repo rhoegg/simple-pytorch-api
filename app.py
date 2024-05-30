@@ -44,20 +44,10 @@ async def predict(model_id: str, sample: Sample) -> Sample:
 async def train(model_id: str, samples: List[Sample]):
 	if model_id not in models:
 		return Response(status_code = 404)
-	m = models.get(model_id)
-	criterion = torch.nn.SmoothL1Loss()
-	
-	features = torch.tensor(data=list(map(lambda s: s.features, samples)), dtype=torch.float32).to(device)
-	labelled = torch.tensor(data=list(map(lambda s: s.predictions, samples)), dtype=torch.float32).to(device)
-	
-	m.optimizer.zero_grad()
-	predicted = m(features)
-	print(predicted)
-	loss = criterion(predicted, labelled)
-	loss.backward()
-	m.optimizer.step()
-	
-	
+	train_model(models.get(model_id), 
+			list(map(lambda s: s.features, samples)),
+			list(map(lambda s: s.predictions, samples)),
+			device)
 
 
 @app.get("/models/{model_id}", response_class=Response)
@@ -82,4 +72,3 @@ async def get_model(model_id: str):
 async def replace_model(model_id: str, request: Request):
 	with io.BytesIO(await request.body()) as buf:
 		models[model_id] = NeuralNet.from_saved(buf).to(device)
-	#torch_model.forward(torch.rand((1, 48)))

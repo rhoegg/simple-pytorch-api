@@ -1,5 +1,6 @@
 import io
 import torch
+
 from pydantic import BaseModel
 
 input_features = 48
@@ -29,12 +30,10 @@ class NeuralNet(torch.nn.Module):
             layer_input_features = layer.outputs
             self.layer_stack.append(parse_activation(layer))
         self.layer_stack.append(torch.nn.Linear(layer_input_features, output_features))
+        self.huber_loss_delta = parse_huber_loss_delta(nn_spec)
         
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=0.001, amsgrad=True)
-        # output_loss_delta = next(
-        #     (m.parameters.delta for m in nn_spec.modifiers if m.parameters.has_key("delta")),
-        #     1.0)
-        # print("huber loss delta = " + output_loss_delta)
+
 
     @classmethod
     def from_saved(cls, data: bytes):
@@ -87,3 +86,22 @@ def parse_activation(layer_spec: NeuralNetLayerSpec):
         case "hardsigmoid":
             return torch.nn.Hardsigmoid()
     return torch.nn.Identity()
+
+def parse_huber_loss_delta(nn_spec: NeuralNetSpec) -> float:
+    return next(
+        (m.parameters['delta'] for m in nn_spec.modifiers if m.name=="huberLoss" and "delta" in m.parameters),
+        1.0)
+    
+
+def train_model(model: NeuralNet, features: list[float], labelled: list[float], device):
+    criterion = torch.nn.HuberLoss(delta=model.huber_loss_delta)
+    
+    t_features = torch.tensor(data=features, dtype=torch.float32).to(device)
+    t_labelled = torch.tensor(data=labelled, dtype=torch.float32).to(device)
+	
+    model.optimizer.zero_grad()
+    predicted = model(t_features)
+    print(predicted)
+    loss = criterion(predicted, t_labelled)
+    loss.backward()
+    model.optimizer.step()
